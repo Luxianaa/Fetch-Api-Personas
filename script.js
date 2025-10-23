@@ -1,196 +1,209 @@
 const API_URL = "http://127.0.0.1:8000/api";
 
-document.getElementById("btnLogin")?.addEventListener("click", async () => {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  try {
-    const res = await fetch(`${API_URL}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password,
-      }),
-    });
-    const token = await res.json();
-    if (res.ok) {
-      localStorage.setItem("token", token.token);
-      window.location.href = "crud.html";
-    }
-  } catch (error) {
-    console.error("Error:", error);
-  }
-});
-
-async function listarPersonas() {
-  const token = localStorage.getItem("token");
-  try {
-    const res = await fetch(`${API_URL}/personas`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (!res.ok) throw new Error("Error con listar las personas");
-    const personas = await res.json();
-    let html = `
-      <h2> Listado de todas las personas</h2>
-      <table border=1>
-        <thead>
-          <tr>
-            <th>id</th>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Carnet</th>
-            <th>Direccion</th>
-            <th>Telf</th>
-            <th>Email</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-      <tbody>
-      `;
-    personas.forEach((persona) => {
-      html += `
-          <tr>
-          <td>${persona.id}</td>
-          <td>${persona.nombre} </td>
-          <td>${persona.apellido}</td>
-          <td>${persona.ci} </td>
-          <td>${persona.direccion} </td>
-          <td>${persona.telefono}</td>
-          <td>${persona.email}</td>
-          <td>
-            <button class="btn btn-warning" onclick="mostrarFormularioEditar(${persona.id})">Editar</button>
-            <button class="btn btn-danger" onclick="eliminarPersona(${persona.id})   ">Eliminar</button>
-            </td>
-          </tr>
-        `;
-    });
-
-    html += `
-    </tbody>
-        </table>
-        `;
-    document.getElementById("container").innerHTML = html;
-  } catch (error) {
-    console.error("Error:", error);
-    alert("No se puede cargar personas");
-  }
+// ---------------------- Helpers sencillos ----------------------
+// Obtener token guardado
+function getToken() {
+  return localStorage.getItem('token');
 }
-document.getElementById("btnCargar")?.addEventListener("click", listarPersonas);
-document.getElementById("btnCrear")?.addEventListener("click", () => {
-  formCrear();
-});
-function formCrear() {
-  const html = `
-  <h2>Nueva Persona</h2>
-  <form id="formPersona" style="display: flex; flex-direction: column; gap: 10px; max-width: 400px; margin: auto;">
-    <label for="nombre">Nombre:</label>
-    <input type="text" id="nombre">
-    <label for="apellido">Apellido:</label>
-    <input type="text" id="apellido">
-    <label for="ci">Carnet:</label>
-    <input type="text" id="ci">
-    <label for="direccion">Direccion:</label>
-    <input type="text" id="direccion">
-    <label for="telefono">Telefono:</label>
-    <input type="text" id="telefono">
-    <label for="email">Email:</label>
-    <input type="email" id="email">
-    <div>
-        <button type="submit">Crear</button>
-        <button type="button" id="btnCancelar">Cancelar</button>
-    </div>
-</form>
-  `;
-  document.getElementById("container").innerHTML = html;
-  document
-    .getElementById("formPersona")
-    .addEventListener("submit", crearPersona);
-  document.getElementById("btnCancelar").addEventListener("click", () => {
-    document.getElementById("container").innerHTML = "";
+
+async function apiRequest(path,
+   method = 'GET', 
+   data = null) {
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const options = { method, headers };
+  if (data) options.body = JSON.stringify(data);
+
+  const res = await fetch(`${API_URL}${path}`, options);
+  return res; 
+}
+
+
+const btnLogin = document.getElementById('btnLogin');
+if (btnLogin) {
+  btnLogin.addEventListener('click', async () => {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    try {
+      const res = await apiRequest('/login', 'POST', { email, password });
+      if (!res.ok) {
+        alert('Login falló: ' + res.status);
+        return;
+      }
+      const body = await res.json();
+      localStorage.setItem('token', body.token);
+
+      window.location.href = 'crud.html';
+    } catch (err) {
+      console.error('Error login:', err);
+      alert('Error al iniciar sesión');
+    }
   });
 }
-// Función para crear persona
-async function crearPersona(event) {
-  event.preventDefault();
 
-  const token = localStorage.getItem("token");
+
+async function listarPersonas() {
+  try {
+    const res = await apiRequest('/personas');
+    if (!res.ok) throw new Error('Error al obtener personas');
+    const personas = await res.json();
+
+    // Construir tabla simple
+    let html = '<h2>Listado de personas</h2>';
+    html += '<table border="1"><thead><tr><th>ID</th><th>Nombre</th><th>Apellido</th><th>CI</th><th>Tel</th><th>Email</th><th>Acciones</th></tr></thead><tbody>';
+    personas.forEach(p => {
+      html += `<tr>` +
+        `<td>${p.id}</td>` +
+        `<td>${p.nombre}</td>` +
+        `<td>${p.apellido}</td>` +
+        `<td>${p.ci}</td>` +
+        `<td>${p.telefono}</td>` +
+        `<td>${p.email}</td>` +
+        `<td>` +
+          `<button onclick="mostrarFormularioEditar(${p.id})">Editar</button>` +
+          ` <button onclick="eliminarPersona(${p.id})">Eliminar</button>` +
+        `</td>` +
+      `</tr>`;
+    });
+    html += '</tbody></table>';
+
+    document.getElementById('container').innerHTML = html;
+  } catch (err) {
+    console.error(err);
+    alert('No se pudo cargar la lista');
+  }
+}
+
+const btnCargar = document.getElementById('btnCargar');
+if (btnCargar) btnCargar.addEventListener('click', listarPersonas);
+
+function formCrear() {
+  const html = `
+    <h2>Crear persona</h2>
+    <form id="formPersona">
+      <label>Nombre: <input id="nombre" required></label><br>
+      <label>Apellido: <input id="apellido" required></label><br>
+      <label>CI: <input id="ci" required></label><br>
+      <label>Teléfono: <input id="telefono"></label><br>
+      <label>Email: <input id="email" type="email"></label><br>
+      <button type="submit">Crear</button>
+      <button type="button" id="btnCancelar">Cancelar</button>
+    </form>
+  `;
+  document.getElementById('container').innerHTML = html;
+
+  document.getElementById('formPersona').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const persona = {
+      nombre: document.getElementById('nombre').value,
+      apellido: document.getElementById('apellido').value,
+      ci: document.getElementById('ci').value,
+      telefono: document.getElementById('telefono').value,
+      email: document.getElementById('email').value,
+    };
+
+    try {
+      const res = await apiRequest('/personas', 'POST', persona);
+      if (!res.ok) {
+        const err = await res.json().catch(()=>null);
+        alert('Error crear: ' + (err?.message || res.status));
+        return;
+      }
+      alert('Creado');
+      listarPersonas();
+    } catch (err) {
+      console.error(err);
+      alert('Error al crear');
+    }
+  });
+
+  document.getElementById('btnCancelar').addEventListener('click', () => {
+    document.getElementById('container').innerHTML = '';
+  });
+}
+
+const btnCrear = document.getElementById('btnCrear');
+if (btnCrear) btnCrear.addEventListener('click', formCrear);
+
+async function mostrarFormularioEditar(id) {
+  try {
+    const res = await apiRequest(`/personas/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error('No se pudo cargar la persona');
+    const p = await res.json();
+
+    const html = `
+      <h2>Editar persona</h2>
+      <form id="formEditar">
+        <input type="hidden" id="edit_id" value="${p.id}">
+        <label>Nombre: <input id="edit_nombre" value="${p.nombre }" required></label><br>
+        <label>Apellido: <input id="edit_apellido" value="${p.apellido }" required></label><br>
+        <label>CI: <input id="edit_ci" value="${p.ci }" required></label><br>
+        <label>Teléfono: <input id="edit_telefono" value="${p.telefono }"></label><br>
+        <label>Email: <input id="edit_email" type="email" value="${p.email }"></label><br>
+        <button type="submit">Guardar</button>
+        <button type="button" id="btnCancelarEditar">Cancelar</button>
+      </form>
+    `;
+
+    document.getElementById('container').innerHTML = html;
+
+    document.getElementById('formEditar').addEventListener('submit', actualizarPersona);
+    document.getElementById('btnCancelarEditar').addEventListener('click', () => {
+      document.getElementById('container').innerHTML = '';
+    });
+  } catch (err) {
+    console.error(err);
+    alert('No se pudo cargar la persona para editar');
+  }
+}
+
+async function actualizarPersona(e) {
+  e.preventDefault();
+  const id = document.getElementById('edit_id').value;
   const persona = {
-    nombre: document.getElementById("nombre").value,
-    apellido: document.getElementById("apellido").value,
-    ci: document.getElementById("ci").value,
-    direccion: document.getElementById("direccion").value,
-    telefono: document.getElementById("telefono").value,
-    email: document.getElementById("email").value,
+    nombre: document.getElementById('edit_nombre').value,
+    apellido: document.getElementById('edit_apellido').value,
+    ci: document.getElementById('edit_ci').value,
+    telefono: document.getElementById('edit_telefono').value,
+    email: document.getElementById('edit_email').value,
   };
 
   try {
-    const res = await fetch(`${API_URL}/personas`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(persona),
-    });
-
-    const data = await res.json(); // Obtener la respuesta
-    console.log("Respuesta de la API:", data); // Ver qué devuelve
-    console.log("Status:", res.status);
-
-    if (!res.ok) throw new Error("Error al crear la persona");
-
-    alert("Persona creada exitosamente");
-    listarPersonas(); // Recarga la lista de personas
-  } catch (error) {
-    console.error("Error:", error);
-    alert("No se pudo crear la persona");
+    const res = await apiRequest(`/personas/${encodeURIComponent(id)}`, 'PUT', persona);
+    if (!res.ok) {
+      const err = await res.json().catch(()=>null);
+      alert('Error actualizar: ' + (err?.message || res.status));
+      return;
+    }
+    alert('Actualizado');
+    listarPersonas();
+  } catch (err) {
+    console.error(err);
+    alert('Error al actualizar');
   }
 }
-// ...existing code...
 
 async function eliminarPersona(id) {
-  if (!confirm("¿Está seguro de eliminar esta persona?")) {
-    return;
-  }
-
-  const token = localStorage.getItem("token");
+  if (!confirm('Eliminar esta persona?')) return;
   try {
-    const res = await fetch(`${API_URL}/personas/${id}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    console.log("Status:", res.status);
-
+    const res = await apiRequest(`/personas/${encodeURIComponent(id)}`, 'DELETE');
     if (!res.ok) {
-      throw new Error("No se pudo eliminar a persona");
+      const err = await res.json().catch(()=>null);
+      alert('Error eliminar: ' + (err?.message || res.status));
+      return;
     }
-
-    // Verificar si hay contenido antes de parsear JSON
-    const contentType = res.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      const data = await res.json();
-      console.log("api respuesta", data);
-    }
-
-    alert("Persona eliminada exitosamente");
+    alert('Eliminado');
     listarPersonas();
-  } catch (error) {
-    console.error("Error", error);
-    alert("No se pudo eliminar: " + error.message);
+  } catch (err) {
+    console.error(err);
+    alert('Error al eliminar');
   }
 }
+window.mostrarFormularioEditar = mostrarFormularioEditar;
+window.eliminarPersona = eliminarPersona;
